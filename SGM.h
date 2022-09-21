@@ -28,7 +28,7 @@ public:
 	* \param height		输入，核线像对影像高
 	* \param option		输入，SemiGlobalMatching参数
 	*/
-	bool Initialize(const uint32& width, const uint32& height, const SGMOption& option);
+	bool Initialize(const sint32& width, const sint32& height, const SGMOption& option);
 
 	/*
 	* \brief 执行匹配
@@ -48,7 +48,7 @@ public:
 
 private:
 	// \brief Census变换
-	void CensusTransform() const;
+	void CensusTransform();
 
 	// \brief 代价计算
 	void ComputeCost() const;
