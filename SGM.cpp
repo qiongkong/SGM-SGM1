@@ -1,6 +1,6 @@
 #include "SGM.h"
-#include "utils.h"
 #include <algorithm>
+#include <assert.h>
 
 SGM::SGM()
 {
@@ -34,6 +34,15 @@ bool SGM::Initialize(const sint32& width, const sint32& height, const SGMOption&
 	}
 	cost_init_ = new uint8[width * height * disp_range]();
 	cost_aggr_ = new uint16[width * height * disp_range]();
+	const sint32 size = width * height * disp_range;
+	cost_aggr_1_ = new uint8[size]();
+	cost_aggr_2_ = new uint8[size]();
+	cost_aggr_3_ = new uint8[size]();
+	cost_aggr_4_ = new uint8[size]();
+	cost_aggr_5_ = new uint8[size]();
+	cost_aggr_6_ = new uint8[size]();
+	cost_aggr_7_ = new uint8[size]();
+	cost_aggr_8_ = new uint8[size]();
 
 	// 视差图
 	disp_left_ = new float32[width * height]();
@@ -62,7 +71,7 @@ bool SGM::Match(const uint8* img_left, const uint8* img_right, float32* disp_lef
 	ComputeCost();
 
 	//// 代价聚合
-	//CostAggregation();
+	CostAggregation();
 
 	// 视差计算
 	ComputeDisparity();
@@ -182,7 +191,8 @@ void SGM::ComputeDisparity() const
 	const sint32 disp_range = max_disparity - min_disparity;
 
 	// 未使用代价聚合，暂用初始代价代替
-	auto cost_ptr = cost_init_;
+	//auto cost_ptr = cost_init_;
+	auto cost_ptr = cost_aggr_;
 
 	// 逐像素计算最优视差
 	for (sint32 i = 0; i < height_; i++) {
@@ -215,4 +225,44 @@ void SGM::ComputeDisparity() const
 		}
 	}
 
+}
+
+void SGM::CostAggregation() const{
+	// 路径聚合
+	// 1、左->右/右->左
+	// 2、上->下/下->上
+	// 3、左上->右下/右下->左上
+	// 4、右上->左上/左下->右上
+	//
+	// ↘ ↓ ↙   5  3  7
+	// →    ←	  1     2
+	// ↗ ↑ ↖   8  4  6
+	//
+	const auto& min_disparity = option_.min_disparity;
+	const auto& max_disparity = option_.max_disparity;
+	assert(max_disparity > min_disparity);
+
+	const sint32 size = width_ * height_ * (max_disparity - min_disparity);
+	if (size <= 0) {
+		return;
+	}
+
+	const auto& P1 = option_.p1;
+	const auto& P2_Init = option_.p2_int;
+
+	// 左右聚合
+	utils::CostAggregateLeftRight(img_left_, width_, height_, min_disparity, max_disparity, P1, P2_Init, cost_init_, cost_aggr_1_, true);
+	utils::CostAggregateLeftRight(img_left_, width_, height_, min_disparity, max_disparity, P1, P2_Init, cost_init_, cost_aggr_2_, false);
+
+	// 上下聚合
+	utils::CostAggregateUpDown(img_left_, width_, height_, min_disparity, max_disparity, P1, P2_Init, cost_init_, cost_aggr_3_, true);
+	utils::CostAggregateUpDown(img_left_, width_, height_, min_disparity, max_disparity, P1, P2_Init, cost_init_, cost_aggr_4_, false);
+
+	// 把4/8个方向加起来
+	for (sint32 i = 0; i < size; i++) {
+		cost_aggr_[i] = cost_aggr_1_[i] + cost_aggr_2_[i] + cost_aggr_3_[i] + cost_aggr_4_[i];
+		if (option_.num_paths == 10) {
+			cost_aggr_[i] += cost_aggr_5_[i] + cost_aggr_6_[i] + cost_aggr_7_[i] + cost_aggr_8_[i];
+		}
+	}
 }

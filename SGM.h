@@ -1,6 +1,6 @@
 #pragma once
 #include "types.h"
-
+#include "utils.h"
 class SGM
 {
 public:
@@ -94,5 +94,19 @@ private:
 
 	/* \brief 是否初始化标志 */
 	bool is_initialized_;
+
+	// ↘ ↓ ↙  5  3  7
+	// →    ←	 1     2
+	// ↗ ↑ ↖  8  4  6
+
+	// 聚合匹配代价-方向1
+	uint8* cost_aggr_1_;
+	uint8* cost_aggr_2_;
+	uint8* cost_aggr_3_;
+	uint8* cost_aggr_4_;
+	uint8* cost_aggr_5_;
+	uint8* cost_aggr_6_;
+	uint8* cost_aggr_7_;
+	uint8* cost_aggr_8_;
 };
 
