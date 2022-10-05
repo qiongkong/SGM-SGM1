@@ -258,10 +258,18 @@ void SGM::CostAggregation() const{
 	utils::CostAggregateUpDown(img_left_, width_, height_, min_disparity, max_disparity, P1, P2_Init, cost_init_, cost_aggr_3_, true);
 	utils::CostAggregateUpDown(img_left_, width_, height_, min_disparity, max_disparity, P1, P2_Init, cost_init_, cost_aggr_4_, false);
 
+	// 左上/右下聚合
+	utils::CostAggregateDiagonal_1(img_left_, width_, height_, min_disparity, max_disparity, P1, P2_Init, cost_init_, cost_aggr_5_, true);
+	utils::CostAggregateDiagonal_1(img_left_, width_, height_, min_disparity, max_disparity, P1, P2_Init, cost_init_, cost_aggr_6_, false);
+
+	// 左上/右下聚合
+	utils::CostAggregateDiagonal_2(img_left_, width_, height_, min_disparity, max_disparity, P1, P2_Init, cost_init_, cost_aggr_7_, true);
+	utils::CostAggregateDiagonal_2(img_left_, width_, height_, min_disparity, max_disparity, P1, P2_Init, cost_init_, cost_aggr_8_, false);
+
 	// 把4/8个方向加起来
 	for (sint32 i = 0; i < size; i++) {
 		cost_aggr_[i] = cost_aggr_1_[i] + cost_aggr_2_[i] + cost_aggr_3_[i] + cost_aggr_4_[i];
-		if (option_.num_paths == 10) {
+		if (option_.num_paths == 8) {
 			cost_aggr_[i] += cost_aggr_5_[i] + cost_aggr_6_[i] + cost_aggr_7_[i] + cost_aggr_8_[i];
 		}
 	}
