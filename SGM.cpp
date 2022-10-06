@@ -77,6 +77,14 @@ bool SGM::Match(const uint8* img_left, const uint8* img_right, float32* disp_lef
 	// 视差计算
 	ComputeDisparity();
 
+	// 左右一致性检查
+	if (option_.is_check_lr) {
+		// 视差计算，右影像
+		ComputeDisparityRight();
+		// 一致性检查
+		LRCheck();
+	}
+
 	//// 输出视差图
 	memcpy(disp_left, disp_left_, width_ * height_ * sizeof(sint32));
 
@@ -184,6 +192,55 @@ void SGM::ComputeCost() const
 	}
 }
 
+
+void SGM::CostAggregation() const{
+	// 路径聚合
+	// 1、左->右/右->左
+	// 2、上->下/下->上
+	// 3、左上->右下/右下->左上
+	// 4、右上->左上/左下->右上
+	//
+	// ↘ ↓ ↙   5  3  7
+	// →    ←	  1     2
+	// ↗ ↑ ↖   8  4  6
+	//
+	const auto& min_disparity = option_.min_disparity;
+	const auto& max_disparity = option_.max_disparity;
+	assert(max_disparity > min_disparity);
+
+	const sint32 size = width_ * height_ * (max_disparity - min_disparity);
+	if (size <= 0) {
+		return;
+	}
+
+	const auto& P1 = option_.p1;
+	const auto& P2_Init = option_.p2_int;
+
+	// 左右聚合
+	utils::CostAggregateLeftRight(img_left_, width_, height_, min_disparity, max_disparity, P1, P2_Init, cost_init_, cost_aggr_1_, true);
+	utils::CostAggregateLeftRight(img_left_, width_, height_, min_disparity, max_disparity, P1, P2_Init, cost_init_, cost_aggr_2_, false);
+
+	// 上下聚合
+	utils::CostAggregateUpDown(img_left_, width_, height_, min_disparity, max_disparity, P1, P2_Init, cost_init_, cost_aggr_3_, true);
+	utils::CostAggregateUpDown(img_left_, width_, height_, min_disparity, max_disparity, P1, P2_Init, cost_init_, cost_aggr_4_, false);
+
+	// 左上/右下聚合
+	utils::CostAggregateDiagonal_1(img_left_, width_, height_, min_disparity, max_disparity, P1, P2_Init, cost_init_, cost_aggr_5_, true);
+	utils::CostAggregateDiagonal_1(img_left_, width_, height_, min_disparity, max_disparity, P1, P2_Init, cost_init_, cost_aggr_6_, false);
+
+	// 左上/右下聚合
+	utils::CostAggregateDiagonal_2(img_left_, width_, height_, min_disparity, max_disparity, P1, P2_Init, cost_init_, cost_aggr_7_, true);
+	utils::CostAggregateDiagonal_2(img_left_, width_, height_, min_disparity, max_disparity, P1, P2_Init, cost_init_, cost_aggr_8_, false);
+
+	// 把4/8个方向加起来
+	for (sint32 i = 0; i < size; i++) {
+		cost_aggr_[i] = cost_aggr_1_[i] + cost_aggr_2_[i] + cost_aggr_3_[i] + cost_aggr_4_[i];
+		if (option_.num_paths == 8) {
+			cost_aggr_[i] += cost_aggr_5_[i] + cost_aggr_6_[i] + cost_aggr_7_[i] + cost_aggr_8_[i];
+		}
+	}
+}
+
 void SGM::ComputeDisparity() const
 {
 	// 最小最大视差
@@ -200,7 +257,7 @@ void SGM::ComputeDisparity() const
 
 	// 未使用代价聚合，暂用初始代价代替
 	// auto cost_ptr = cost_init_;
-	
+
 	// 左影像聚合代价数组
 	auto cost_ptr = cost_aggr_;
 
@@ -256,53 +313,124 @@ void SGM::ComputeDisparity() const
 			// disp_left_[i * width_ + j] = static_cast<float>(best_disparity);
 		}
 	}
-
 }
 
-void SGM::CostAggregation() const{
-	// 路径聚合
-	// 1、左->右/右->左
-	// 2、上->下/下->上
-	// 3、左上->右下/右下->左上
-	// 4、右上->左上/左下->右上
-	//
-	// ↘ ↓ ↙   5  3  7
-	// →    ←	  1     2
-	// ↗ ↑ ↖   8  4  6
-	//
-	const auto& min_disparity = option_.min_disparity;
-	const auto& max_disparity = option_.max_disparity;
-	assert(max_disparity > min_disparity);
+void SGM::ComputeDisparityRight() const
+{
+	// 最小最大视差
+	const sint32& min_disparity = option_.min_disparity;
+	const sint32& max_disparity = option_.max_disparity;
+	const sint32 disp_range = max_disparity - min_disparity;
 
-	const sint32 size = width_ * height_ * (max_disparity - min_disparity);
-	if (size <= 0) {
+	if (disp_range <= 0) {
 		return;
 	}
 
-	const auto& P1 = option_.p1;
-	const auto& P2_Init = option_.p2_int;
+	// 右影像视差图
+	const auto disparity = disp_right_;
 
-	// 左右聚合
-	utils::CostAggregateLeftRight(img_left_, width_, height_, min_disparity, max_disparity, P1, P2_Init, cost_init_, cost_aggr_1_, true);
-	utils::CostAggregateLeftRight(img_left_, width_, height_, min_disparity, max_disparity, P1, P2_Init, cost_init_, cost_aggr_2_, false);
+	// 左影像聚合代价数组
+	auto cost_ptr = cost_aggr_;
 
-	// 上下聚合
-	utils::CostAggregateUpDown(img_left_, width_, height_, min_disparity, max_disparity, P1, P2_Init, cost_init_, cost_aggr_3_, true);
-	utils::CostAggregateUpDown(img_left_, width_, height_, min_disparity, max_disparity, P1, P2_Init, cost_init_, cost_aggr_4_, false);
+	const sint32 width = width_;
+	const sint32 height = height_;
 
-	// 左上/右下聚合
-	utils::CostAggregateDiagonal_1(img_left_, width_, height_, min_disparity, max_disparity, P1, P2_Init, cost_init_, cost_aggr_5_, true);
-	utils::CostAggregateDiagonal_1(img_left_, width_, height_, min_disparity, max_disparity, P1, P2_Init, cost_init_, cost_aggr_6_, false);
+	// 为加快读取效率，把单个像素的所有代价值存储到局部数组里
+	std::vector<uint16> cost_local(disp_range);
 
-	// 左上/右下聚合
-	utils::CostAggregateDiagonal_2(img_left_, width_, height_, min_disparity, max_disparity, P1, P2_Init, cost_init_, cost_aggr_7_, true);
-	utils::CostAggregateDiagonal_2(img_left_, width_, height_, min_disparity, max_disparity, P1, P2_Init, cost_init_, cost_aggr_8_, false);
 
-	// 把4/8个方向加起来
-	for (sint32 i = 0; i < size; i++) {
-		cost_aggr_[i] = cost_aggr_1_[i] + cost_aggr_2_[i] + cost_aggr_3_[i] + cost_aggr_4_[i];
-		if (option_.num_paths == 8) {
-			cost_aggr_[i] += cost_aggr_5_[i] + cost_aggr_6_[i] + cost_aggr_7_[i] + cost_aggr_8_[i];
+	// 逐像素计算最优视差
+	// 通过左影像的代价，计算右影像的代价
+	// 右cost(xr, yr, d) = 左cost(xr+d, yl, d)
+	// 视差等于同名点在左影像上的列号减去在右影像上的列号
+
+	for (sint32 i = 0; i < height; i++) {
+		for (sint32 j = 0; j < width; j++) {
+
+			uint16 min_cost = UINT16_MAX;
+			uint16 sec_min_cost = UINT16_MAX;
+			sint32 best_disparity = 0;
+
+			// 遍历视差范围内所有代价值，输出最小代价值及对应的视差值
+			for (sint32 d = min_disparity; d < max_disparity; d++) {
+				const sint32 d_itx = d - min_disparity;
+				const sint32 col_left = j + d;
+				if (col_left >= 0 && col_left < width) {
+					const auto& cost = cost_local[d_itx] = cost_ptr[i * width * disp_range + j * disp_range + d_itx];
+					if (min_cost > cost) {
+						min_cost = cost;
+						best_disparity = d;
+					}
+				}
+				else {
+					cost_local[d_itx] = UINT16_MAX;
+				}
+
+			}
+
+			// 子像素拟合
+			// 边界处理
+			if (best_disparity == min_disparity || best_disparity == max_disparity - 1) {
+				disparity[i * width + j] = Invalid_Float;
+				continue;
+			}
+			// 最优视差前一个视差的代价值是cost_1, 后一个视差的代价值是cost_2
+			const sint32 idx_1 = best_disparity - 1 - min_disparity;
+			const sint32 idx_2 = best_disparity + 1 - min_disparity;
+			const uint16 cost_1 = cost_local[idx_1];
+			const uint16 cost_2 = cost_local[idx_2];
+
+			// 解一元二次曲线极值即为最优值
+			const uint16 denom = std::max(1, cost_1 + cost_2 - 2 * min_cost);
+			disparity[i * width + j] = best_disparity + (cost_1 - cost_2) / (denom * 2.0f);
+
+			// 将最小代价值对应的视差值即为像素的最优视差
+			//if (max_cost != min_cost) {
+			//	disp_left_[i * width_ + j] = static_cast<float>(best_disparity);
+			//}
+			//else {
+			//	// 如果所有视差下代价值都一样，则该像素无效
+			//	disp_left_[i * width_ + j] = Invalid_Float;
+			//}
+			// disp_left_[i * width_ + j] = static_cast<float>(best_disparity);
+		}
+	}
+}
+
+
+// 左右一致性检查
+// 左右互换，看同名点视差是否相隔不大于1
+void SGM::LRCheck() const
+{
+	const sint32 width = width_;
+	const sint32 height = height_;
+
+	const float& threshold = option_.lrcheck_thres;
+
+
+	// 左右一致性检查
+	for (sint32 i = 0; i < height; i++) {
+		for (sint32 j = 0; j < width; j++) {
+			// 左影像视差值
+			auto& disp = disp_left_[i * width + j];
+
+			// 根据视差值找到右影像上对应的同名像素
+			const auto col_right = static_cast<sint32>(j - disp + 0.5);
+
+			if (col_right >= 0 && col_right < width) {
+				// 右影像同名像素视差值
+				const auto& disp_r = disp_right_[i * width + col_right];
+
+				// 判断两个视差值是否一致（差值不大于阈值）
+				if (abs(disp - disp_r) > threshold) {
+					// 左右不一致
+					disp = Invalid_Float;
+				}
+			}
+			else {
+				// 通过视差值在右影像找不到同名像素，超出影像范围
+				disp = Invalid_Float;
+			}
 		}
 	}
 }

@@ -51,6 +51,8 @@ int main(int argv)
     sgm_option.max_disparity = 64;
     sgm_option.p1 = 10;
     sgm_option.p2_int = 150;
+    sgm_option.is_check_lr = true;
+    sgm_option.lrcheck_thres = 1.0f;
 
     SGM sgm;
 

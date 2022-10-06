@@ -18,7 +18,10 @@ public:
 		sint32 p1;				// 惩罚项参数P1
 		sint32 p2_int;			// 惩罚项参数P2
 
-		SGMOption() : num_paths(8), min_disparity(0), max_disparity(640), p1(10), p2_int(150) {
+		bool is_check_lr;  // 是否检查左右一致性
+		float32 lrcheck_thres;  // 左右一致性约束阈值
+
+		SGMOption() : num_paths(8), min_disparity(0), max_disparity(640), p1(10), p2_int(150), is_check_lr(true), lrcheck_thres(1.0f) {
 		}
 	};
 
@@ -59,6 +62,8 @@ private:
 	// \bried 视差计算
 	void ComputeDisparity() const;
 
+	void ComputeDisparityRight() const;
+
 	// \bried 一致性检查
 	void LRCheck() const;
 
@@ -91,6 +96,9 @@ private:
 
 	/* \brief 左影像视差图*/
 	float32* disp_left_;
+
+	/* \brief 右影像视差图*/
+	float32* disp_right_;
 
 	/* \brief 是否初始化标志 */
 	bool is_initialized_;
