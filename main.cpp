@@ -17,7 +17,7 @@
 int main(int argv)
 {
     argv = 3;
-    const char* argc[] = { ".\\data\\cones\\im2.png", ".\\data\\cones\\im6.png", ".\\data\\cones\\8方向聚合.png" };
+    const char* argc[] = { ".\\data\\cones\\im2.png", ".\\data\\cones\\im6.png", ".\\data\\cones\\聚合.png" };
     if (argv < 3) {
         std::cout << "Hello World!\n";
         return -1;

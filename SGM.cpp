@@ -1,6 +1,7 @@
 #include "SGM.h"
 #include <algorithm>
 #include <assert.h>
+#include <vector>
 
 SGM::SGM()
 {
@@ -190,28 +191,59 @@ void SGM::ComputeDisparity() const
 	const sint32& max_disparity = option_.max_disparity;
 	const sint32 disp_range = max_disparity - min_disparity;
 
+	if (disp_range <= 0) {
+		return;
+	}
+
+	// 左影像视差图
+	const auto disparity = disp_left_;
+
 	// 未使用代价聚合，暂用初始代价代替
-	//auto cost_ptr = cost_init_;
+	// auto cost_ptr = cost_init_;
+	
+	// 左影像聚合代价数组
 	auto cost_ptr = cost_aggr_;
 
+	const sint32 width = width_;
+	const sint32 height = height_;
+
+	// 为加快读取效率，把单个像素的所有代价值存储到局部数组里
+	std::vector<uint16> cost_local(disp_range);
+
+
 	// 逐像素计算最优视差
-	for (sint32 i = 0; i < height_; i++) {
-		for (sint32 j = 0; j < width_; j++) {
+	for (sint32 i = 0; i < height; i++) {
+		for (sint32 j = 0; j < width; j++) {
 
 			uint16 min_cost = UINT16_MAX;
-			uint16 max_cost = 0;
+			uint16 sec_min_cost = UINT16_MAX;
 			sint32 best_disparity = 0;
 
 			// 遍历视差范围内所有代价值，输出最小代价值及对应的视差值
 			for (sint32 d = min_disparity; d < max_disparity; d++) {
 				const sint32 d_itx = d - min_disparity;
-				const auto& cost = cost_ptr[i * width_ * disp_range + j * disp_range + d_itx];
+				const auto& cost = cost_local[d_itx] = cost_ptr[i * width * disp_range + j * disp_range + d_itx];
 				if (min_cost > cost) {
 					min_cost = cost;
 					best_disparity = d;
 				}
-				max_cost = std::max(max_cost, static_cast<uint16>(cost));
 			}
+
+			// 子像素拟合
+			// 边界处理
+			if (best_disparity == min_disparity || best_disparity == max_disparity - 1) {
+				disparity[i * width + j] = Invalid_Float;
+				continue;
+			}
+			// 最优视差前一个视差的代价值是cost_1, 后一个视差的代价值是cost_2
+			const sint32 idx_1 = best_disparity - 1 - min_disparity;
+			const sint32 idx_2 = best_disparity + 1 - min_disparity;
+			const uint16 cost_1 = cost_local[idx_1];
+			const uint16 cost_2 = cost_local[idx_2];
+
+			// 解一元二次曲线极值即为最优值
+			const uint16 denom = std::max(1, cost_1 + cost_2 - 2 * min_cost);
+			disparity[i * width + j] = best_disparity + (cost_1 - cost_2) / (denom * 2.0f);
 
 			// 将最小代价值对应的视差值即为像素的最优视差
 			//if (max_cost != min_cost) {
@@ -221,7 +253,7 @@ void SGM::ComputeDisparity() const
 			//	// 如果所有视差下代价值都一样，则该像素无效
 			//	disp_left_[i * width_ + j] = Invalid_Float;
 			//}
-			disp_left_[i * width_ + j] = static_cast<float>(best_disparity);
+			// disp_left_[i * width_ + j] = static_cast<float>(best_disparity);
 		}
 	}
 
