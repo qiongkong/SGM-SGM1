@@ -47,6 +47,7 @@ bool SGM::Initialize(const sint32& width, const sint32& height, const SGMOption&
 
 	// 视差图
 	disp_left_ = new float32[width * height]();
+	disp_right_ = new float32[width * height]();
 
 	is_initialized_ = census_left_ && census_right_ && cost_init_ && cost_aggr_ && disp_left_;
 
@@ -356,7 +357,7 @@ void SGM::ComputeDisparityRight() const
 				const sint32 d_itx = d - min_disparity;
 				const sint32 col_left = j + d;
 				if (col_left >= 0 && col_left < width) {
-					const auto& cost = cost_local[d_itx] = cost_ptr[i * width * disp_range + j * disp_range + d_itx];
+					const auto& cost = cost_local[d_itx] = cost_ptr[i * width * disp_range + col_left * disp_range + d_itx];
 					if (min_cost > cost) {
 						min_cost = cost;
 						best_disparity = d;
@@ -415,7 +416,7 @@ void SGM::LRCheck() const
 			auto& disp = disp_left_[i * width + j];
 
 			// 根据视差值找到右影像上对应的同名像素
-			const auto col_right = static_cast<sint32>(j - disp + 0.5);
+			const auto col_right = static_cast<sint32>(j - disp + 0.5);  // 四舍五入
 
 			if (col_right >= 0 && col_right < width) {
 				// 右影像同名像素视差值
