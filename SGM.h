@@ -21,7 +21,13 @@ public:
 		bool is_check_lr;  // 是否检查左右一致性
 		float32 lrcheck_thres;  // 左右一致性约束阈值
 
-		SGMOption() : num_paths(8), min_disparity(0), max_disparity(640), p1(10), p2_int(150), is_check_lr(true), lrcheck_thres(1.0f) {
+		bool is_check_unique;  // 是否检查唯一性
+		float32 uniqueness_ratio;  // 唯一性约束阈值，（最小代价-次最小代价）/最小代价 > 阈值，则有效像素
+
+		SGMOption() : num_paths(8), min_disparity(0), max_disparity(640),
+					  p1(10), p2_int(150), 
+					  is_check_lr(true), lrcheck_thres(1.0f),
+					  is_check_unique(true), uniqueness_ratio(0.95f) {
 		}
 	};
 

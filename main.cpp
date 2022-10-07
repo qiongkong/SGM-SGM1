@@ -45,14 +45,22 @@ int main(int argv)
     const uint32 width = static_cast<uint32>(img_left.cols);
     const uint32 height = static_cast<uint32>(img_right.rows);
 
+    // SGM匹配 参数设计
     SGM::SGMOption sgm_option;
+    // 聚合路径数
     sgm_option.num_paths = 8;
+    // 候选视差范围
     sgm_option.min_disparity = 0;
     sgm_option.max_disparity = 64;
+    // 惩罚项
     sgm_option.p1 = 10;
     sgm_option.p2_int = 150;
+    // 左右一致性检查
     sgm_option.is_check_lr = true;
     sgm_option.lrcheck_thres = 1.0f;
+    // 唯一性约束
+    sgm_option.is_check_unique = true;
+    sgm_option.uniqueness_ratio = 0.99;
 
     SGM sgm;
 

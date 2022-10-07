@@ -265,6 +265,9 @@ void SGM::ComputeDisparity() const
 	const sint32 width = width_;
 	const sint32 height = height_;
 
+	const bool is_check_unique = option_.is_check_unique;
+	const float32 uniqueness_ratio = option_.uniqueness_ratio;
+
 	// 为加快读取效率，把单个像素的所有代价值存储到局部数组里
 	std::vector<uint16> cost_local(disp_range);
 
@@ -284,6 +287,26 @@ void SGM::ComputeDisparity() const
 				if (min_cost > cost) {
 					min_cost = cost;
 					best_disparity = d;
+				}
+			}
+
+			// 唯一性检查
+			if (is_check_unique){
+				// 再次遍历，寻找次最小代价值
+				for (sint32 d = min_disparity; d < max_disparity; d++) {
+					if (d == best_disparity) {
+						// 跳过最小代价值
+						continue;
+					}
+					const auto& cost = cost_local[d - min_disparity];
+					sec_min_cost = std::min(sec_min_cost, cost);
+				}
+
+				// 唯一性约束
+				// 若(sec - min) / min < 1 - uniqueness, 则为无效估计
+				if (sec_min_cost - min_cost <= static_cast<uint16>(min_cost * (1 - uniqueness_ratio))) {
+					disparity[i * width + j] = Invalid_Float;
+						continue;
 				}
 			}
 
@@ -336,6 +359,10 @@ void SGM::ComputeDisparityRight() const
 	const sint32 width = width_;
 	const sint32 height = height_;
 
+	// 唯一性检查
+	const bool is_check_unique = option_.is_check_unique;
+	const float32 uniqueness_ratio = option_.uniqueness_ratio;
+
 	// 为加快读取效率，把单个像素的所有代价值存储到局部数组里
 	std::vector<uint16> cost_local(disp_range);
 
@@ -366,7 +393,26 @@ void SGM::ComputeDisparityRight() const
 				else {
 					cost_local[d_itx] = UINT16_MAX;
 				}
+			}
 
+			// 唯一性检查
+			if (is_check_unique) {
+				// 再次遍历，寻找次最小代价值
+				for (sint32 d = min_disparity; d < max_disparity; d++) {
+					if (d == best_disparity) {
+						// 跳过最小代价值
+						continue;
+					}
+					const auto& cost = cost_local[d - min_disparity];
+					sec_min_cost = std::min(sec_min_cost, cost);
+				}
+
+				// 唯一性约束
+				// 若(sec - min) / min < 1 - uniqueness, 则为无效估计
+				if (sec_min_cost - min_cost <= static_cast<uint16>(min_cost * (1 - uniqueness_ratio))) {
+					disparity[i * width + j] = Invalid_Float;
+					continue;
+				}
 			}
 
 			// 子像素拟合
