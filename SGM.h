@@ -1,6 +1,7 @@
 #pragma once
 #include "types.h"
 #include "utils.h"
+
 class SGM
 {
 public:
@@ -24,10 +25,14 @@ public:
 		bool is_check_unique;  // 是否检查唯一性
 		float32 uniqueness_ratio;  // 唯一性约束阈值，（最小代价-次最小代价）/最小代价 > 阈值，则有效像素
 
+		bool is_remove_speckles;  // 是否移出小的连通区
+		uint32 min_speckle_area;  // 最小的连通区面积（像素数），小于的移出
+
 		SGMOption() : num_paths(8), min_disparity(0), max_disparity(640),
 					  p1(10), p2_int(150), 
 					  is_check_lr(true), lrcheck_thres(1.0f),
-					  is_check_unique(true), uniqueness_ratio(0.95f) {
+			          is_check_unique(true), uniqueness_ratio(0.95f),
+					  is_remove_speckles(true), min_speckle_area(20) {
 		}
 	};
 

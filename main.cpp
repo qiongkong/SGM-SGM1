@@ -61,6 +61,9 @@ int main(int argv)
     // 唯一性约束
     sgm_option.is_check_unique = true;
     sgm_option.uniqueness_ratio = 0.99;
+    // 小连通区
+    sgm_option.is_remove_speckles = true;
+    sgm_option.min_speckle_area = 30;
 
     SGM sgm;
 
@@ -79,7 +82,7 @@ int main(int argv)
 
     // 显示视差图
     cv::Mat disp_mat = cv::Mat(height, width, CV_8UC1);
-    std::cout << disparity;
+
     for (uint32 i = 0; i < height; i++) {
         for (uint32 j = 0; j < width; j++) {
             const float32 disp = disparity[i * width + j];

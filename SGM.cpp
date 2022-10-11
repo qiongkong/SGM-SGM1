@@ -85,6 +85,10 @@ bool SGM::Match(const uint8* img_left, const uint8* img_right, float32* disp_lef
 		// 一致性检查
 		LRCheck();
 	}
+	// 移出小连通区
+	if (option_.is_remove_speckles) {
+		utils::RemoveSpeckles(disp_left_, width_, height_, 1, option_.min_speckle_area, Invalid_Float);
+	}
 
 	//// 输出视差图
 	memcpy(disp_left, disp_left_, width_ * height_ * sizeof(sint32));

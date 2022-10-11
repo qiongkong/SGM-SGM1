@@ -465,3 +465,72 @@ void utils::CostAggregateDiagonal_2(const uint8* img_data, const sint32& width, 
 		}
 	}
 }
+
+
+// 去除小连通区
+void utils::RemoveSpeckles(float32* disparity_map, const sint32& width, const sint32& height, const sint32& diff_insame, const uint32& min_speckle_area, const float32 invalid_val)
+{
+	assert(width > 0 && height > 0);
+	if (width <= 0 || height <= 0) {
+		return;
+	}
+
+	// 标记像素是否被访问的数组
+	std::vector<bool> visited(uint32(width * height), false);
+	
+	// 逐像素
+	for (sint32 i = 0; i < height; i++) {
+		for (sint32 j = 0; j < width; j++) {
+
+			// 跳过访问过的像素和无效像素
+			if (visited[i * width + j] || disparity_map[i * width + j] == invalid_val) {
+				continue;
+			}
+
+			// 广度优先遍历，区域跟踪
+			// 将连通域面积小于阈值的区域视差全部设为无效值
+			std::vector<std::pair<sint32, sint32>> vec;
+			vec.emplace_back(i, j);
+			visited[i * width + j] = true;
+			uint32 cur = 0;
+			uint32 next = 0;
+			do {
+				// 广度优先遍历，区域追踪
+				next = vec.size();
+				for (uint32 k = cur; k < next; k++) {
+					const auto& pixel = vec[k];
+					const sint32 row = pixel.first;
+					const sint32 col = pixel.second;
+					const auto& disp_base = disparity_map[row * width + col];
+
+					// 8邻域遍历
+					for (sint8 r = -1; r <= 1; r++) {
+						for (sint8 c = -1; c <= 1; c++) {
+							if (r == 0 && c == 0) {
+								continue;
+							}
+							sint32 rowr = row + r;
+							sint32 colc = col + c;
+							if (rowr >= 0 && rowr < height && colc >= 0 && colc < width) {
+								if (!visited[rowr * width + colc] &&
+									disparity_map[rowr * width + colc] != invalid_val &&
+									abs(disparity_map[rowr * width + colc] - disp_base) < diff_insame) {
+									vec.emplace_back(rowr, colc);
+									visited[rowr * width + colc] = true;
+								}
+							}
+						}
+					}
+				}
+				cur = next;
+			} while (next < vec.size());
+
+			// 连通域面积小于阈值的区域，视差都设为无效值
+			if (vec.size() < min_speckle_area) {
+				for (auto& pix : vec) {
+					disparity_map[pix.first * width + pix.second] = invalid_val;
+				}
+			}
+		}
+	}
+}
