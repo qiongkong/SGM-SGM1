@@ -90,7 +90,10 @@ bool SGM::Match(const uint8* img_left, const uint8* img_right, float32* disp_lef
 		utils::RemoveSpeckles(disp_left_, width_, height_, 1, option_.min_speckle_area, Invalid_Float);
 	}
 
-	//// 输出视差图
+	// 中值滤波
+	utils::MedianFilter(disp_left_, disp_left_, width_, height_, 3);
+
+	// 输出视差图
 	memcpy(disp_left, disp_left_, width_ * height_ * sizeof(sint32));
 
 	return true;

@@ -1,6 +1,7 @@
 #include "utils.h"
 #include <assert.h>
 #include <vector>
+#include <algorithm>  // std::sort
 
 void utils::census_transform_5x5(const uint8* source, uint32* census,
 	const sint32& width, const sint32& height)
@@ -531,6 +532,45 @@ void utils::RemoveSpeckles(float32* disparity_map, const sint32& width, const si
 					disparity_map[pix.first * width + pix.second] = invalid_val;
 				}
 			}
+		}
+	}
+}
+
+
+// 中值滤波，作为一个平滑算法，它主要是用来剔除视差图中的一些孤立的离群外点，同时还能起到填补小洞的作用
+void utils::MedianFilter(const float32* in, float32* out, const sint32& width, const sint32& height, const sint32 wnd_size) 
+{
+	// 窗口半径
+	const sint32 radius = wnd_size / 2;
+	// 窗口大小
+	const sint32 size = wnd_size * wnd_size;
+
+	// 存储局部窗口内数据
+	std::vector<float32> wnd_data;
+	// 预分配n个元素的存储空间
+	wnd_data.reserve(size);
+
+	// 逐像素
+	for (sint32 i = 0; i < height; i++) {
+		for (sint32 j = 0; j < width; j++) {
+			wnd_data.clear();
+
+			// 获取局部窗口数据
+			for (sint32 r = -radius; r <= radius; r++) {
+				for (sint32 c = -radius; c <= radius; c++) {
+					const sint32 rowr = i + r;
+					const sint32 colc = j + c;
+					if (rowr >= 0 && rowr < height && colc >= 0 && colc < width) {
+						wnd_data.push_back(in[rowr * width + colc]);
+					}
+				}
+			}
+
+			// 排序
+			std::sort(wnd_data.begin(), wnd_data.end());
+
+			// 取中值
+			out[i * width + j] = wnd_data[wnd_data.size() / 2];
 		}
 	}
 }
