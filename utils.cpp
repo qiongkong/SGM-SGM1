@@ -549,7 +549,7 @@ void utils::MedianFilter(const float32* in, float32* out, const sint32& width, c
 	std::vector<float32> wnd_data;
 	// 预分配n个元素的存储空间
 	wnd_data.reserve(size);
-
+	
 	// 逐像素
 	for (sint32 i = 0; i < height; i++) {
 		for (sint32 j = 0; j < width; j++) {

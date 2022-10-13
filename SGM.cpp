@@ -2,6 +2,7 @@
 #include <algorithm>
 #include <assert.h>
 #include <vector>
+#include "utils.h"
 
 SGM::SGM()
 {
@@ -85,9 +86,14 @@ bool SGM::Match(const uint8* img_left, const uint8* img_right, float32* disp_lef
 		// 一致性检查
 		LRCheck();
 	}
-	// 移出小连通区
+	// 移除小连通区
 	if (option_.is_remove_speckles) {
 		utils::RemoveSpeckles(disp_left_, width_, height_, 1, option_.min_speckle_area, Invalid_Float);
+	}
+
+	// 视差填充
+	if (option_.is_fill_holes) {
+		FillHolesInDispMap();
 	}
 
 	// 中值滤波
@@ -454,19 +460,35 @@ void SGM::ComputeDisparityRight() const
 
 // 左右一致性检查
 // 左右互换，看同名点视差是否相隔不大于1
-void SGM::LRCheck() const
+void SGM::LRCheck()
 {
 	const sint32 width = width_;
 	const sint32 height = height_;
 
 	const float& threshold = option_.lrcheck_thres;
 
+	// 遮挡区：由于前景遮挡而在左视图上可见但在右视图上不可见的像素区域。
+	// 误匹配区：位于非遮挡区域的错误匹配像素区域。
+	// 假设q是p通过视差d找到的同名点，如果在左影像存在另外一个像素p'也和q是同名点而且它的视差比d要大，那么p就是遮挡区。
+	// p因为遮挡而在右影像上不可见，所以它会匹配到右影像上的前景像素，而前景像素的视差值必定比背景像素大，即比p的视差大
+	// 遮挡区像素和误匹配区像素
+
+	auto& occlusions = occlusions_;
+	auto& mismatches = mismatches_;
+
+	occlusions.clear();
+	mismatches.clear();
 
 	// 左右一致性检查
 	for (sint32 i = 0; i < height; i++) {
 		for (sint32 j = 0; j < width; j++) {
 			// 左影像视差值
 			auto& disp = disp_left_[i * width + j];
+
+			if (disp == Invalid_Float) {
+				mismatches.emplace_back(i, j);
+				continue;
+			}
 
 			// 根据视差值找到右影像上对应的同名像素
 			const auto col_right = static_cast<sint32>(j - disp + 0.5);  // 四舍五入
@@ -477,14 +499,139 @@ void SGM::LRCheck() const
 
 				// 判断两个视差值是否一致（差值不大于阈值）
 				if (abs(disp - disp_r) > threshold) {
-					// 左右不一致
+					// 区分遮挡区和误匹配区
+					// 通过右影像视差算出在左影像的匹配像素，并获取视差disp_rl
+					// if (disp_rl > disp)
+					//		pixel in occlusions
+					// else
+					//		pixel in mismatches
+					const sint32 col_rl = static_cast<sint32>(col_right + disp_r + 0.5);
+					if (col_rl > 0 && col_rl < width) {
+						const auto& disp_l = disp_left_[i * width + col_rl];
+						if (disp_l > disp) {
+							occlusions.emplace_back(i, j);
+						}
+						else {
+							mismatches.emplace_back(i, j);
+						}
+					}
+					else {
+						mismatches.emplace_back(i, j);
+					}
+
+					// 视差值无效
 					disp = Invalid_Float;
 				}
 			}
 			else {
 				// 通过视差值在右影像找不到同名像素，超出影像范围
 				disp = Invalid_Float;
+				mismatches.emplace_back(i, j);
 			}
 		}
+	}
+}
+
+
+// 视差填充
+void SGM::FillHolesInDispMap()
+{
+	const sint32 width = width_;
+	const sint32 height = height_;
+
+	std::vector<float32> disp_collects;
+
+	// 定义8个方向
+	const float32 pi = 3.1415926f;
+	float32 angle[8] = { pi, 3 * pi / 4, pi / 2, pi / 4, 0, 7 * pi / 4, 3 * pi / 2, 5 * pi / 4 };
+	
+	// 以像素为中心，等角度往外发射8条射线，收集每条射线碰到的第一个有效像素
+	// 对于遮挡区像素，因为它的身份是背景像素，所以它是不能选择周围的前景像素视差值的，应该选择周围背景像素的视差值。由于背景像素视差值比前景像素小，所以在收集周围的有效视差值后，应选择较小的几个，具体哪一个呢？SGM作者选择的是次最小视差。
+	// 对于误匹配像素，它并不位于遮挡区，所以周围的像素都是可见的，而且没有遮挡导致的视差非连续的情况，它就像一个连续的表面凸起的一小块噪声，这时周围的视差值都是等价的，没有哪个应选哪个不应选，这时取中值就很适合。
+	
+	// 最大搜索行程，过远的像素不必搜索
+	const sint32 max_search_length = 1.0 * std::max(abs(option_.max_disparity), abs(option_.min_disparity));
+
+	float32* disp_ptr = disp_left_;
+	for (sint32 k = 0; k < 3; k++) {
+		// 第一次循环处理遮挡区，第二次循环处理误匹配区
+		// 待处理像素
+		auto& prs_pixels = (k == 0) ? occlusions_ : mismatches_;
+
+		if (prs_pixels.empty()) {
+			continue;
+		}
+
+		std::vector<std::pair<sint32, sint32>> third_pixels;
+		if (k == 2) {
+			// 第三次循环处理前两次没有处理的像素
+			for (sint32 i = 0; i < height; i++) {
+				for (sint32 j = 0; j < width; j++) {
+					if (disp_ptr[i * width + j] == Invalid_Float) {
+						third_pixels.emplace_back(i, j);
+					}
+				}
+			}
+			prs_pixels = third_pixels;
+		}
+
+		std::vector<float32> fill_disps(prs_pixels.size());
+
+		// 遍历待处理像素
+		for (auto n = 0u; n < prs_pixels.size(); n++) {
+			auto pix = prs_pixels[n];
+			const sint32 y = pix.first;
+			const sint32 x = pix.second;
+
+			// 8个方向上遇到的首个有效视差值
+			disp_collects.clear();
+			for (sint8 s = 0; s < 8; s++) {
+				const float32 ang = angle[s];
+				const float32 sina = float32(sin(ang));
+				const float32 cosa = float32(cos(ang));
+
+				for (sint32 m = 1; m < max_search_length; m++) {
+					const sint32 yy = lround(y + m * sina);
+					const sint32 xx = lround(x + m * cosa);
+					if (yy < 0 || yy >= height || xx < 0 || xx >= width) {
+						break;
+					}
+					const auto& disp = *(disp_ptr + yy * width + xx);
+					if (disp != Invalid_Float) {
+						disp_collects.push_back(disp);
+						break;
+					}
+				}
+			}
+
+			// 若为空，进行下一个像素
+			if (disp_collects.empty()) {
+				continue;
+			}
+
+			std::sort(disp_collects.begin(), disp_collects.end());
+
+			// 遮挡区：选择第二小的视差值
+			// 误匹配区：选择中值
+			if (k == 0) {
+				if (disp_collects.size() > 1) {
+					fill_disps[n] = disp_collects[1];
+				}
+				else {
+					fill_disps[n] = disp_collects[0];
+				}
+			}
+			else {
+				fill_disps[n] = disp_collects[disp_collects.size() / 2];
+			}
+		}
+
+		for (auto n = 0u; n < prs_pixels.size(); n++) {
+			auto& pix = prs_pixels[n];
+			const sint32 y = pix.first;
+			const sint32 x = pix.second;
+			disp_ptr[y * width + x] = fill_disps[n];
+		}
+
 	}
 }

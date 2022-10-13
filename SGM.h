@@ -1,6 +1,6 @@
 #pragma once
 #include "types.h"
-#include "utils.h"
+#include <vector>
 
 class SGM
 {
@@ -28,11 +28,14 @@ public:
 		bool is_remove_speckles;  // 是否移出小的连通区
 		uint32 min_speckle_area;  // 最小的连通区面积（像素数），小于的移出
 
+		bool is_fill_holes;  // 是否填充视差空间
+
 		SGMOption() : num_paths(8), min_disparity(0), max_disparity(640),
 					  p1(10), p2_int(150), 
 					  is_check_lr(true), lrcheck_thres(1.0f),
 			          is_check_unique(true), uniqueness_ratio(0.95f),
-					  is_remove_speckles(true), min_speckle_area(20) {
+					  is_remove_speckles(true), min_speckle_area(20),
+		              is_fill_holes(true) {
 		}
 	};
 
@@ -76,7 +79,9 @@ private:
 	void ComputeDisparityRight() const;
 
 	// \bried 一致性检查
-	void LRCheck() const;
+	void LRCheck();
+
+	void FillHolesInDispMap();
 
 	/* \brief SGM参数 */
 	SGMOption option_;
@@ -127,5 +132,11 @@ private:
 	uint8* cost_aggr_6_;
 	uint8* cost_aggr_7_;
 	uint8* cost_aggr_8_;
+
+	// 遮挡区像素集
+	std::vector<std::pair<int, int>> occlusions_;
+
+	// 误匹配区像素集
+	std::vector<std::pair<int, int>> mismatches_;
 };
 

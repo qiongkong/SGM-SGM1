@@ -64,6 +64,9 @@ int main(int argv)
     // 小连通区
     sgm_option.is_remove_speckles = true;
     sgm_option.min_speckle_area = 30;
+    // 视差图填充
+    // 视差填充的结果不很可靠，根据实际考虑，工程科研
+    sgm_option.is_fill_holes = true;
 
     SGM sgm;
 
