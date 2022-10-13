@@ -3,6 +3,7 @@
 
 #include <iostream>
 #include <opencv2/opencv.hpp>
+# include <algorithm>
 #include "SGM.h"
 
 /*
@@ -42,8 +43,8 @@ int main(int argv)
     }
 
     //```SGM匹配
-    const uint32 width = static_cast<uint32>(img_left.cols);
-    const uint32 height = static_cast<uint32>(img_right.rows);
+    const sint32 width = static_cast<uint32>(img_left.cols);
+    const sint32 height = static_cast<uint32>(img_right.rows);
 
     // SGM匹配 参数设计
     SGM::SGMOption sgm_option;
@@ -84,21 +85,54 @@ int main(int argv)
     }
 
     // 显示视差图
+    // 计算点云不能用disp_mat数据，只用来显示和保存结果
+    // 计算点云应用上面的disparity数组数据，是子像素浮点数
     cv::Mat disp_mat = cv::Mat(height, width, CV_8UC1);
 
-    for (uint32 i = 0; i < height; i++) {
-        for (uint32 j = 0; j < width; j++) {
+    //for (uint32 i = 0; i < height; i++) {
+    //    for (uint32 j = 0; j < width; j++) {
+    //        const float32 disp = disparity[i * width + j];
+    //        if (disp == Invalid_Float) {
+    //            disp_mat.data[i * width + j] = 0;
+    //        }
+    //        else {
+    //            disp_mat.data[i * width + j] = 2 * static_cast<uchar>(disp);
+    //        }
+    //    }
+    //}
+
+    float32 min_disp = width, max_disp = -width;
+    for (sint32 i = 0; i < height; i++) {
+        for (sint32 j = 0; j < width; j++) {
+            const float32 disp = disparity[i * width + j];
+            if (disp != Invalid_Float) {
+                min_disp = std::min(min_disp, disp);
+                max_disp = std::max(max_disp, disp);
+            }
+        }
+    }
+    for (sint32 i = 0; i < height; i++) {
+        for (sint32 j = 0; j < width; j++) {
             const float32 disp = disparity[i * width + j];
             if (disp == Invalid_Float) {
                 disp_mat.data[i * width + j] = 0;
             }
             else {
-                disp_mat.data[i * width + j] = 2 * static_cast<uchar>(disp);
+                disp_mat.data[i * width + j] = static_cast<uchar>((disp - min_disp) / (max_disp - min_disp) * 255);
             }
         }
     }
+
+    
     cv::imshow("视差图", disp_mat);
     cv::imwrite(argc[2], disp_mat);
+
+    cv::Mat disp_color;
+    cv::applyColorMap(disp_mat, disp_color, cv::COLORMAP_JET);
+    cv::imshow("视差图-伪彩色", disp_color);
+    std::string disp_color_map_path = argc[2];
+    disp_color_map_path += "伪彩色.png";
+    cv::imwrite(disp_color_map_path, disp_color);
 
     cv::waitKey(0);
 
