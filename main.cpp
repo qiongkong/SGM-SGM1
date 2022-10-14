@@ -130,28 +130,42 @@ int main(int argv)
     //    }
     //}
 
-    float32 min_disp = width, max_disp = -width;
-    for (sint32 i = 0; i < height; i++) {
-        for (sint32 j = 0; j < width; j++) {
-            const float32 disp = disparity[i * width + j];
-            if (disp != Invalid_Float) {
-                min_disp = std::min(min_disp, disp);
-                max_disp = std::max(max_disp, disp);
-            }
-        }
-    }
-    for (sint32 i = 0; i < height; i++) {
-        for (sint32 j = 0; j < width; j++) {
+    //float32 min_disp = width, max_disp = -width;
+    //for (sint32 i = 0; i < height; i++) {
+    //    for (sint32 j = 0; j < width; j++) {
+    //        const float32 disp = disparity[i * width + j];
+    //        if (disp != Invalid_Float) {
+    //            min_disp = std::min(min_disp, disp);
+    //            max_disp = std::max(max_disp, disp);
+    //        }
+    //    }
+    //}
+    //for (sint32 i = 0; i < height; i++) {
+    //    for (sint32 j = 0; j < width; j++) {
+    //        const float32 disp = disparity[i * width + j];
+    //        if (disp == Invalid_Float) {
+    //            disp_mat.data[i * width + j] = 0;
+    //        }
+    //        else {
+    //            disp_mat.data[i * width + j] = static_cast<uchar>((disp - min_disp) / (max_disp - min_disp) * 255);
+    //        }
+    //    }
+    //}
+
+    for (uint32 i = 0; i < height; i++) {
+        for (uint32 j = 0; j < width; j++) {
             const float32 disp = disparity[i * width + j];
             if (disp == Invalid_Float) {
                 disp_mat.data[i * width + j] = 0;
             }
             else {
-                disp_mat.data[i * width + j] = static_cast<uchar>((disp - min_disp) / (max_disp - min_disp) * 255);
+                disp_mat.data[i * width + j] = static_cast<uchar>(disp * 255. / 64);
             }
         }
     }
 
+    //cv::Mat disp8U = cv::Mat(disp_mat.rows, disp_mat.cols, CV_8UC1);
+    //disp_mat.convertTo(disp8U, CV_8UC1, 1);
     
     cv::imshow("视差图", disp_mat);
     cv::imwrite(argc[2], disp_mat);
