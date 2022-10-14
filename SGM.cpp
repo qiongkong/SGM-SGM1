@@ -3,6 +3,10 @@
 #include <assert.h>
 #include <vector>
 #include "utils.h"
+#include <ctime>
+#include <iostream>
+
+clock_t start, end;
 
 SGM::SGM()
 {
@@ -67,18 +71,30 @@ bool SGM::Match(const uint8* img_left, const uint8* img_right, float32* disp_lef
 	img_left_ = img_left;
 	img_right_ = img_right;
 
+	start = clock();
+
 	// Census变换
 	CensusTransform();
 
 	// 代价计算
 	ComputeCost();
 
+	end = clock();
+	std::cout << "代价计算，用时" << double(end - start) / CLOCKS_PER_SEC << "s" << std::endl;
+
+	start = clock();
 	//// 代价聚合
 	CostAggregation();
+	end = clock();
+	std::cout << "代价聚合，用时" << double(end - start) / CLOCKS_PER_SEC << "s" << std::endl;
 
+	start = clock();
 	// 视差计算
 	ComputeDisparity();
+	end = clock();
+	std::cout << "视差计算，用时" << double(end - start) / CLOCKS_PER_SEC << "s" << std::endl;
 
+	start = clock();
 	// 左右一致性检查
 	if (option_.is_check_lr) {
 		// 视差计算，右影像
@@ -98,6 +114,9 @@ bool SGM::Match(const uint8* img_left, const uint8* img_right, float32* disp_lef
 
 	// 中值滤波
 	utils::MedianFilter(disp_left_, disp_left_, width_, height_, 3);
+	end = clock();
+	std::cout << "后处理，  用时" << double(end - start) / CLOCKS_PER_SEC << "s" << std::endl << std::endl;
+
 
 	// 输出视差图
 	memcpy(disp_left, disp_left_, width_ * height_ * sizeof(sint32));

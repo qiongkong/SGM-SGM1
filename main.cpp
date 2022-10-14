@@ -3,8 +3,9 @@
 
 #include <iostream>
 #include <opencv2/opencv.hpp>
-# include <algorithm>
+#include <algorithm>
 #include "SGM.h"
+#include <ctime>
 
 /*
 *  \brief
@@ -23,6 +24,7 @@ int main(int argv)
         std::cout << "Hello World!\n";
         return -1;
     }
+    clock_t start, end;
 
     // ```读取影像
     std::string path_left = argc[0];
@@ -45,6 +47,18 @@ int main(int argv)
     //```SGM匹配
     const sint32 width = static_cast<uint32>(img_left.cols);
     const sint32 height = static_cast<uint32>(img_right.rows);
+
+    //// 左右影像 灰度数据
+    //auto bytes_left = new uint8[width * height];
+    //auto bytes_right = new uint8[width * height];
+    //for (uint16 i = 0; i < height; i++) {
+    //    for (uint16 j = 0; j < width; j++) {
+    //        bytes_left[i * width + j] = img_left.at<uint8>(i, j);
+    //        bytes_right[i * width + j] = img_right.at<uint8>(i, j);
+    //    }
+    //}
+
+    std::cout << "Loading Pictures...Done" << std::endl;
 
     // SGM匹配 参数设计
     SGM::SGMOption sgm_option;
@@ -69,20 +83,35 @@ int main(int argv)
     // 视差填充的结果不很可靠，根据实际考虑，工程科研
     sgm_option.is_fill_holes = true;
 
+    printf("宽度为 %d, 高度为 %d, 视差范围为 [%d, %d] \n", width, height, sgm_option.min_disparity, sgm_option.max_disparity);
+
+    // 定义SGM匹配类实例
     SGM sgm;
 
     // 初始化
+    std::cout << std::endl << "SGM初始化中..." << std::endl;
+
+    start = clock();
     if (!sgm.Initialize(width, height, sgm_option)) {
         std::cout << "SGM初始化失败！" << std::endl;
         return -2;
     }
+    end = clock();
+    std::cout << "SGM初始化完成，用时" << double(end - start) / CLOCKS_PER_SEC << "s" << std::endl << std::endl;
 
     // 匹配
+    std::cout << "SGM匹配中..." << std::endl;
+
+    start = clock();
+    // disparity用来保存子像素视差结果
     auto disparity = new float32[width * height]();
     if (!sgm.Match(img_left.data, img_right.data, disparity)) {
         std::cout << "SGM匹配失败！" << std::endl;
         return -2;
     }
+    end = clock();
+    std::cout << "SGM匹配完成，用时" << double(end - start) / CLOCKS_PER_SEC << "s" << std::endl;
+
 
     // 显示视差图
     // 计算点云不能用disp_mat数据，只用来显示和保存结果
